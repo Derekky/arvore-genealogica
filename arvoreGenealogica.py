@@ -1,4 +1,6 @@
 import networkx as nx
+import pydot
+from networkx.drawing.nx_pydot import graphviz_layout
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
@@ -6,8 +8,8 @@ import os
 from PIL import Image
 import numpy as np
 import pandas as pd
-import pandas as pd
-from random import randint as rand
+import matplotlib.colors as mcolors
+import random
 
 # Carrega os dados da planilha
 dfPessoas = pd.read_excel("info.xlsx", sheet_name="Pessoas")
@@ -89,48 +91,29 @@ def imagem_redonda(path, size=200):
 G = nx.DiGraph()
 G.add_edges_from([(r["pai_mae"], r["filho"]) for r in relacoes])
 
-# Função para criar a árvore (estéticamente falando)
-def calcularPosicao(G):
-    pos = {}
-    try:
-        for node in G.nodes:
-            x=0
-            y=0
+# Calcula posições para formar uma árvore (outras opções para prog são "fdp", "twopi" e "sfdp")
+pos = graphviz_layout(G, prog="dot")
 
-            #Temporário só pra deixar a galera espalhada
-            x = rand(-50,50)
+# Randomiza uma lista de cores
+colors = list(mcolors.CSS4_COLORS.values())
+random.shuffle(colors)
 
-            if pd.isna(info[node].get("geracao")): 
-                y = -10
-            elif info[node].get("geracao") != 0:
-                y = info[node].get("geracao")  # Calcula a posição y com base na geração
-            pos[node] = (x, -y*10)
-        return pos
-    except Exception as e:
-        print(f"Erro ao calcular posição: {e}")
-        return pos
-
-#Tenta inferir a geração dos restantes caso possível
-def infereGeracao(G): #Estou rodando isso n² vezes de propósito
-    for node in G.nodes:
-        for node in G.nodes:
-            predecessors = list(G.predecessors(node))
-            if not predecessors:
-                continue
-            elif pd.isna(info[node].get("geracao")):
-                #Caso exista predecessor usar sua geração + 1
-                    info[node]["geracao"] = info[predecessors[0]].get("geracao") + 1
-
-infereGeracao(G)
-pos = calcularPosicao(G)
-print(f"pos:{pos}")
+node_colors = {node: colors[i % len(colors)] for i, node in enumerate(G.nodes)}
 
 # Visualização
 fig, ax = plt.subplots(figsize=(12, 7))
-nx.draw(G, pos, with_labels=False, arrows=True, node_size=2600, edge_color="#FFFFFF", node_color="#00bf2232")
 fig.patch.set_facecolor("#1a1a1a")
 
-# Adiciona imagem e/ou texto
+# Desenha os vértices
+nx.draw_networkx_nodes(G, pos, node_size=1000, node_color="#32a8a2", ax=ax)
+
+# Desenhar as arestas com as cores de acordo com o pai/mãe
+for node in G.nodes:
+    edge_color = node_colors[node]
+    edges = [(node, target) for target in G.successors(node)]
+    nx.draw_networkx_edges(G, pos, edgelist=edges, edge_color=edge_color, arrows=True,arrowsize=20,connectionstyle="arc3,rad=0.1", ax=ax, node_size=1400)
+
+# Add labels and images
 for nome, (x, y) in pos.items():
     dados = info[nome]
 
@@ -140,11 +123,14 @@ for nome, (x, y) in pos.items():
         if not nomeFoto or pd.isna(nomeFoto):
             print(f"Imagem não encontrada para {nome}. Usando a imagem padrão.")
             nomeFoto = "no-photo"
-
+            img = imagem_redonda(nophoto, size=100)
         caminhoFoto = os.path.join("fotos/", nomeFoto) + ".jpg"
-        img = imagem_redonda(caminhoFoto, size=100)
-
-        imagebox = OffsetImage(img, zoom=0.5)
+        if os.path.exists(caminhoFoto):
+            img = imagem_redonda(caminhoFoto, size=100)
+        else:
+            print(f"Imagem não encontrada para {nome}. Usando a imagem padrão.")
+            img = imagem_redonda(nophoto, size=100)
+        imagebox = OffsetImage(img, zoom=0.4)
         ab = AnnotationBbox(imagebox, (x, y), frameon=False, bboxprops=dict(boxstyle="circle"))
         ax.add_artist(ab)
     except Exception as e:
@@ -157,15 +143,9 @@ for nome, (x, y) in pos.items():
     if dados.get("ano"):
         label += f"\n({dados['ano']})"
     """
-    ax.text(x, y - 0.15, label, ha="center", va="top", fontsize=16, color="blue", family="serif")
-      
+    ax.text(x, y - 10, label, ha="center", va="top", fontsize=8, color="white", family="serif", wrap=True)
 
-for node in G.nodes:
-    antecessor = list(G.predecessors(node))
-    print(f"Antecessores de {node}: {antecessor}")
-
-
-# Visualização
+# Finalize visualization
 ax.set_title("Família!❤️", fontsize=36, color="white")
 ax.axis('off')
 plt.tight_layout()

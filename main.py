@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.colors as mcolors
 import random
+import sys
 
 # Carrega os dados da planilha
 dfPessoas = pd.read_excel("info.xlsx", sheet_name="Pessoas")
@@ -27,6 +28,7 @@ for _, row in dfPessoas.iterrows():
     if pessoa["Nome"]:  # Ignora se não tem nome
         pessoas.append(pessoa)
 
+#DEBUG
 #print(pessoas)
 
 # Converte para dicionários: {pai/mãe, filho}
@@ -92,7 +94,15 @@ G = nx.DiGraph()
 G.add_edges_from([(r["pai_mae"], r["filho"]) for r in relacoes])
 
 # Calcula posições para formar uma árvore (outras opções para prog são "fdp", "twopi" e "sfdp")
-pos = graphviz_layout(G, prog="dot")
+try:
+    # Usa Graphviz 'dot' para layout hierárquico (é o layout que deixa com cara de árvore genealógica)
+    pos = graphviz_layout(G, prog="dot")
+except (FileNotFoundError, OSError) as e:
+    # Falha comum: Graphviz não está instalado
+    print("Graphviz não encontrado. Saindo do programa.")
+    print("Por favor instale o Graphviz (link: https://graphviz.org/download/)")
+    print("    ou pip install graphviz")
+    sys.exit(1)
 
 # Randomiza uma lista de cores
 colors = list(mcolors.CSS4_COLORS.values())
@@ -113,7 +123,7 @@ for node in G.nodes:
     edges = [(node, target) for target in G.successors(node)]
     nx.draw_networkx_edges(G, pos, edgelist=edges, edge_color=edge_color, arrows=True,arrowsize=20,connectionstyle="arc3,rad=0.1", ax=ax, node_size=1400)
 
-# Add labels and images
+# Adiciona os nomes e imagens relativos às coordenadas de cada vértice
 for nome, (x, y) in pos.items():
     dados = info[nome]
 
@@ -135,7 +145,7 @@ for nome, (x, y) in pos.items():
         ax.add_artist(ab)
     except Exception as e:
         print(f"Erro ao carregar imagem de {nome}: {e}")
-        img = imagem_redonda(nophoto, size=100)  # Fallback to default image in case of an error
+        img = imagem_redonda(nophoto, size=100)  # Fallback pra imagem padrão
     
     # Texto: nome + ano (se existir)
     label = nome
@@ -145,7 +155,7 @@ for nome, (x, y) in pos.items():
     """
     ax.text(x, y - 10, label, ha="center", va="top", fontsize=8, color="white", family="serif", wrap=True)
 
-# Finalize visualization
+# Finaliza visualização
 ax.set_title("Família!❤️", fontsize=36, color="white")
 ax.axis('off')
 plt.tight_layout()
